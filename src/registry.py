@@ -589,7 +589,6 @@ class Regexp(Value):
 
 class SeparatedListOf(Value):
     List = list
-    Value = Value
     sorted = False
     def splitter(self, s):
         """Override this with a function that takes a string and returns a list
@@ -622,6 +621,7 @@ class SeparatedListOf(Value):
             # nick prefixes in any of the numerous ways possible.  Since the
             # config parser doesn't care about this space, we'll use it :)
             return ' '
+SeparatedListOf.Value = Value # Fix issue with Cython
 
 class SpaceSeparatedListOf(SeparatedListOf):
     def splitter(self, s):
