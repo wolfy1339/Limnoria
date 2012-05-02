@@ -962,7 +962,7 @@ class Banmask(registry.SpaceSeparatedSetOfStrings):
         for s in v:
             if s not in self.validStrings:
                 self.error()
-        self.__parent.setValue(self.List(v))
+        super(Banmask, self).setValue(self.List(v))
 
     def makeBanmask(self, hostmask, options=None):
         """Create a banmask from the given hostmask.  If a style of banmask

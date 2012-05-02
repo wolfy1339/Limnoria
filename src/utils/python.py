@@ -58,10 +58,14 @@ def universalImport(*names):
 def changeFunctionName(f, name, doc=None):
     if doc is None:
         doc = f.__doc__
-    newf = types.FunctionType(f.func_code, f.func_globals, name,
-                              f.func_defaults, f.func_closure)
-    newf.__doc__ = doc
-    return newf
+    if hasattr(f, 'func_code'):
+        # Workaround with Cython
+        newf = types.FunctionType(f.func_code, f.func_globals, name,
+                                  f.func_defaults, f.func_closure)
+        newf.__doc__ = doc
+        return newf
+    else:
+        return f
 
 class Object(object):
     def __ne__(self, other):
@@ -86,7 +90,9 @@ class Synchronized(type):
                         f(self, *args, **kwargs)
                     finally:
                         lock.release()
-                return changeFunctionName(g, f.func_name, f.__doc__)
+                if hasattr(f, 'func_name'):
+                    # Workaround with Cython
+                    return changeFunctionName(g, f.func_name, f.__doc__)
             for attr in sync:
                 if attr in dict:
                     dict[attr] = synchronized(dict[attr])

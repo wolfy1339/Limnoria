@@ -1197,6 +1197,7 @@ class Commands(BasePlugin):
         method(irc, msg, *args, **kwargs)
 
     def _callCommand(self, command, irc, msg, *args, **kwargs):
+        method = self.getCommandMethod(command)
         if irc.nick == msg.args[0]:
             self.log.info('%s called in private by %q.', formatCommand(command),
                     msg.prefix)

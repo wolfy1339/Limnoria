@@ -714,12 +714,12 @@ class UsersDictionary(utils.IterableMap):
     def setUser(self, user, flush=True):
         """Sets a user (given its id) to the IrcUser given it."""
         self.nextId = max(self.nextId, user.id)
-        try:
-            if self.getUserId(user.name) != user.id:
-                raise DuplicateHostmask, hostmask
-        except KeyError:
-            pass
         for hostmask in user.hostmasks:
+            try:
+                if self.getUserId(user.name) != user.id:
+                    raise DuplicateHostmask, hostmask
+            except KeyError:
+                pass
             for (i, u) in self.iteritems():
                 if i == user.id:
                     continue

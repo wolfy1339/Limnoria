@@ -442,7 +442,7 @@ class Probability(Float):
 
     def setValue(self, v):
         if 0 <= v <= 1:
-            self.__parent.setValue(v)
+            super(Probability, self).setValue(v)
         else:
             self.error()
 
@@ -497,7 +497,7 @@ class OnlySomeStrings(String):
     def setValue(self, s):
         s = self.normalize(s)
         if s in self.validStrings:
-            self.__parent.setValue(s)
+            super(OnlySomeStrings, self).setValue(s)
         else:
             self.error()
 
@@ -513,14 +513,14 @@ class NormalizedString(String):
 
     def set(self, s):
         s = self.normalize(s)
-        self.__parent.set(s)
+        super(NormalizedString, self).set(s)
 
     def setValue(self, s):
         s = self.normalize(s)
-        self.__parent.setValue(s)
+        super(NormalizedString, self).setValue(s)
 
     def serialize(self):
-        s = self.__parent.serialize()
+        s = super(NormalizedString, self).serialize()
         prefixLen = len(self._name) + 2
         lines = textwrap.wrap(s, width=76-prefixLen)
         last = len(lines)-1

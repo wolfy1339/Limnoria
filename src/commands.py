@@ -944,7 +944,6 @@ class getopts(context):
 ###
 
 class State(object):
-    log = log
     def __init__(self, types):
         self.args = []
         self.kwargs = {}
@@ -970,6 +969,7 @@ class State(object):
         return '%s(args=%r, kwargs=%r, channel=%r)' % (self.__class__.__name__,
                                                        self.args, self.kwargs,
                                                        self.channel)
+State.log = log # Fix issue with Cython
 
 
 ###
@@ -1001,7 +1001,10 @@ class Spec(object):
         return state
 
 def wrap(f, specList=[], name=None, **kw):
-    name = name or f.func_name
+    if name is None and hasattr(f, 'func_name'):
+        name = f.func_name
+    else:
+        name = name or ''
     spec = Spec(specList, **kw)
     def newf(self, irc, msg, args, **kwargs):
         state = spec(irc, msg, args, stateAttrs={'cb': self, 'log': self.log})

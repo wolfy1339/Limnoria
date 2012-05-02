@@ -69,28 +69,6 @@ def registerDefaultPlugin(command, plugin):
     # This must be set, or the quotes won't be removed.
     conf.supybot.commands.defaultPlugins.get(command).set(plugin)
 
-def registerRename(plugin, command=None, newName=None):
-    g = conf.registerGlobalValue(conf.supybot.commands.renames, plugin,
-            registry.SpaceSeparatedSetOfStrings([], """Determines what commands
-            in this plugin are to be renamed."""))
-    if command is not None:
-        g().add(command)
-        v = conf.registerGlobalValue(g, command, registry.String('', ''))
-        if newName is not None:
-            v.setValue(newName) # In case it was already registered.
-        return v
-    else:
-        return g
-
-def renameCommand(cb, name, newName):
-    assert not hasattr(cb, newName), 'Cannot rename over existing attributes.'
-    assert newName == callbacks.canonicalName(newName), \
-           'newName must already be normalized.'
-    if name != newName:
-        method = getattr(cb.__class__, name)
-        setattr(cb.__class__, newName, method)
-        delattr(cb.__class__, name)
-
 
 registerDefaultPlugin('list', 'Misc')
 registerDefaultPlugin('help', 'Misc')

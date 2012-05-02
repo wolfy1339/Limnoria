@@ -57,10 +57,11 @@ class Formatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
         return timestamp(record.created)
 
-    def formatException(self, (E, e, tb)):
+    def formatException(self, exc_tuple):
+        (E, e, tb) = exc_tuple
         for exn in deadlyExceptions:
             if issubclass(e.__class__, exn):
-                raise
+                raise e
         return logging.Formatter.formatException(self, (E, e, tb))
 
     def format(self, record):
@@ -143,7 +144,8 @@ class ColorizedFormatter(Formatter):
     # This was necessary because these variables aren't defined until later.
     # The staticmethod is necessary because they get treated like methods.
     _fmtConf = staticmethod(lambda : conf.supybot.log.stdout.format())
-    def formatException(self, (E, e, tb)):
+    def formatException(self, exc_tuple):
+        (E, e, tb) = exc_tuple
         if conf.supybot.log.stdout.colorized():
             return ''.join([ansi.RED,
                             Formatter.formatException(self, (E, e, tb)),
@@ -358,7 +360,9 @@ def firewall(f, errorHandler=None):
                     return errorHandler(self, *args, **kwargs)
                 except Exception, e:
                     logException(self, 'Uncaught exception in errorHandler')
-    m = utils.python.changeFunctionName(m, f.func_name, f.__doc__)
+    if hasattr(f, 'func_name'):
+        # Workaround with Cython
+        m = utils.python.changeFunctionName(m, f.func_name, f.__doc__)
     return m
 
 class MetaFirewall(type):
