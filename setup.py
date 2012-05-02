@@ -75,6 +75,22 @@ except ImportError, e:
     sys.stderr.write(os.linesep*2)
     sys.exit(-1)
 
+try:
+    from Cython.Distutils import build_ext
+    from distutils.extension import Extension
+    ext_modules = [Extension('supybot.%s' % x.replace('.py', ''), ['src/%s' % x])
+            for x in os.listdir('src') if x.endswith('.py') and \
+                    x not in ['plugin.py']] # plugin.py cannot be a C
+                                            # extension, as it needs __file__
+    #ext_modules.extend([Extension('supybot.utils.%s' % x.replace('.py', ''), ['src/utils/%s' %x])
+    #        for x in os.listdir('src/utils') if x.endswith('.py')])
+    #ext_modules.extend([Extension('supybot.drivers.%s' % x.replace('.py', ''), ['src/drivers/%s' %x])
+    #        for x in os.listdir('src/drivers') if x.endswith('.py')])
+    cmdclass = {'build_ext': build_ext}
+except ImportError:
+    ext_modules = []
+    cmdclass = {}
+
 if clean:
     previousInstall = os.path.join(get_python_lib(), 'supybot')
     if os.path.exists(previousInstall):
@@ -169,7 +185,10 @@ setup(
              'scripts/supybot-adduser',
              'scripts/supybot-plugin-doc',
              'scripts/supybot-plugin-create',
-             ]
+             ],
+
+    cmdclass = cmdclass,
+    ext_modules = ext_modules,
     )
 
 
