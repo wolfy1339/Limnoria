@@ -141,6 +141,11 @@ class BetterFileHandler(logging.FileHandler):
                 self.stream.write(os.linesep)
         self.flush()
 
+    def __getstate__(self):
+        return {}
+    def __getinitargs__(self):
+        return self.baseFilename
+
 
 class ColorizedFormatter(Formatter):
     # This was necessary because these variables aren't defined until later.

@@ -163,6 +163,9 @@ if __name__ == '__main__':
     parser.add_option('', '--debug', action='store_true', dest='debug',
                       help='Determines whether some extra debugging stuff '
                       'will be logged in this script.')
+    parser.add_option('', '--restore', action='store',
+                      dest='restore', default='',
+                      help='Restore bot from a saved state.')
 
     (options, args) = parser.parse_args()
 
@@ -172,7 +175,13 @@ if __name__ == '__main__':
             sys.stderr.write(os.linesep)
             sys.exit(-1)
 
-    if len(args) > 1:
+    if options.restore:
+        if len(args) > 0:
+            parser.error('No argument should be specified.')
+        else:
+            import supybot.update as on_restart
+            on_restore(options.restore)
+    elif len(args) > 1:
         parser.error("""Only one configuration file should be specified.""")
     elif not args:
         parser.error(utils.str.normalizeWhitespace("""It seems you've given me

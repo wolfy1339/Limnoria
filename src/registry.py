@@ -216,6 +216,9 @@ class Group(object):
         self.register(attr, v)
         return v
 
+    def __getstate__(self):
+        state = {}
+
     def __getattr__(self, attr):
         if attr in self._children:
             return self._children[attr]

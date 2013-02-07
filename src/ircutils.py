@@ -560,6 +560,12 @@ class FloodQueue(object):
         return 'FloodQueue(timeout=%r, queues=%s)' % (self.timeout,
                                                       repr(self.queues))
 
+    def __getstate__(self):
+        state = {}
+        state.update(self.__dict__)
+        state['queues'] = IrcDict() # This is unpicklable
+        return state
+
     def key(self, msg):
         # This really ought to be configurable without subclassing, but for
         # now, it works.
@@ -583,8 +589,7 @@ class FloodQueue(object):
                 # means that our __repr__ calls self.queues.__repr__, which
                 # calls structures.TimeoutQueue.__repr__, which calls
                 # getTimeout.__repr__, which calls our __repr__, which calls...
-                getTimeout = lambda : self.getTimeout()
-                q = utils.structures.TimeoutQueue(getTimeout)
+                q = utils.structures.TimeoutQueue(self.getTimeout)
                 self.queues[key] = q
                 return q
             else:
