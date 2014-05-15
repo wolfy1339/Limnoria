@@ -102,9 +102,9 @@ class GithubRepository(GitRepository):
         plugins = [x['name'] for x in plugins if x['type'] == 'dir']
         return plugins
 
-    def _download(self, plugin):
+    def _download(self, plugin, download_url):
+        response = utils.web.getUrlFd(download_url)
         try:
-            response = utils.web.getUrlFd(self._downloadUrl)
             if sys.version_info[0] < 3:
                 assert response.getcode() == 200, response.getcode()
             else:
@@ -116,15 +116,20 @@ class GithubRepository(GitRepository):
         fileObject.seek(0)
         return tarfile.open(fileobj=fileObject, mode='r:gz')
     def install(self, plugin):
-        archive = self._download(plugin)
+        archive = self._download(plugin, self._downloadUrl)
         prefix = archive.getnames()[0]
         dirname = ''.join((self._path, plugin))
+
+        directories = conf.supybot.directories.plugins()
+        directory = self._getWritableDirectoryFromList(directories)
+        assert directory is not None, \
+                'No valid directory in supybot.directories.plugins.'
 
         try:
             assert archive.getmember(prefix + dirname).isdir(), \
                 'This is not a valid plugin (it is a file, not a directory).'
 
-            run_2to3 = self.extract(archive, prefix, dirname)
+            run_2to3 = self.extract(archive, prefix, dirname, directory)
         finally:
             archive.close()
             del archive
@@ -149,21 +154,23 @@ class GithubRepository(GitRepository):
                 'convert it to Python 3 has been made. There is no '
                 'garantee it will work, though.')
 
-    def extract(self, archive, prefix, dirname):
-        directories = conf.supybot.directories.plugins()
-        directory = self._getWritableDirectoryFromList(directories)
-        assert directory is not None, \
-                'No valid directory in supybot.directories.plugins.'
+    def makeNewFilename(self, directory, filename):
+        newFileName = os.path.join(*filename.split('/')[1:])
+        newFileName = newFileName[len(self._path)-1:]
+        newFileName = os.path.join(directory, newFileName)
+        return newFileName
+
+    def extract(self, archive, prefix, dirname, directory):
         run_2to3 = sys.version_info[0] >= 3
         for file in archive.getmembers():
-            if file.name.startswith(prefix + dirname):
+            print(repr(file.name))
+            print(repr(prefix + dirname))
+            if file.name.startswith((prefix + dirname).strip('/')):
                 extractedFile = archive.extractfile(file)
-                newFileName = os.path.join(*file.name.split('/')[1:])
-                newFileName = newFileName[len(self._path)-1:]
-                newFileName = os.path.join(directory, newFileName)
+                newFileName = self.makeNewFilename(directory, file.name)
                 if os.path.exists(newFileName):
                     assert os.path.isdir(newFileName), newFileName + \
-                            'should not be a file.'
+                            ' should not be a file.'
                     shutil.rmtree(newFileName)
                 if extractedFile is None:
                     os.mkdir(newFileName)
@@ -190,7 +197,7 @@ class GithubRepository(GitRepository):
         return run_2to3
 
     def getInfo(self, plugin):
-        archive = self._download(plugin)
+        archive = self._download(plugin, self._downloadUrl)
         prefix = archive.getnames()[0]
         dirname = ''.join((self._path, plugin))
         for file in archive.getmembers():
@@ -207,6 +214,55 @@ class GithubRepository(GitRepository):
                 return directory
         return None
 
+class GithubRepositoryList(GithubRepository):
+    def __init__(self, username, *args):
+        self._username = username
+        self._plugins = args
+        self._path = '/'
+
+        self._downloadUrl = 'https://github.com/%s/%%s/tarball/master' % \
+                            self._username
+
+    def getPluginList(self):
+        return self._plugins
+
+    def makeNewFilename(self, directory, filename):
+        newFileName = filename
+        newFileName = newFileName[len(self._path)-1:]
+        return newFileName
+    def install(self, plugin):
+        assert plugin in self._plugins, 'This is not a valid plugin.'
+        archive = self._download(plugin, self._downloadUrl % plugin)
+        prefix = archive.getnames()[0] + '/'
+        dirname = ''
+        directories = conf.supybot.directories.plugins()
+        directory = self._getWritableDirectoryFromList(directories)
+        assert directory is not None, \
+                'No valid directory in supybot.directories.plugins.'
+
+        try:
+            run_2to3 = self.extract(archive, prefix, dirname, plugin)
+        finally:
+            archive.close()
+            del archive
+
+        if run_2to3:
+            return self.run_2to3(directory, plugin)
+        else:
+            return _('Plugin successfully installed.')
+
+    def getInfo(self, plugin):
+        assert plugin in self._plugins, 'This is not a valid plugin.'
+        archive = self._download(plugin, self._downloadUrl % plugin)
+        prefix = archive.getnames()[0] + '/'
+        dirname = ''
+        for file in archive.getmembers():
+            if file.name.startswith(prefix + dirname + '/README'):
+                extractedFile = archive.extractfile(file)
+                content = extractedFile.read()
+                if sys.version_info[0] >= 3:
+                    content = content.decode()
+                return content
 
 repositories = {
                'ProgVal':          GithubRepository(
@@ -313,6 +369,11 @@ repositories = {
                                                    'IotaSpencer',
                                                    'supyplugins',
                                                    ),
+               'niko':             GithubRepositoryList(
+                                                   'ncoevoet',
+                                                   'ChanTracker',
+                                                   'Hailo',
+                                                   )
                }
 
 class PluginDownloader(callbacks.Plugin):
