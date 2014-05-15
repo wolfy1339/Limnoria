@@ -119,67 +119,75 @@ class GithubRepository(GitRepository):
         archive = self._download(plugin)
         prefix = archive.getnames()[0]
         dirname = ''.join((self._path, plugin))
-        directories = conf.supybot.directories.plugins()
-        directory = self._getWritableDirectoryFromList(directories)
-        assert directory is not None, \
-                'No valid directory in supybot.directories.plugins.'
 
         try:
             assert archive.getmember(prefix + dirname).isdir(), \
                 'This is not a valid plugin (it is a file, not a directory).'
 
-            run_2to3 = sys.version_info[0] >= 3
-            for file in archive.getmembers():
-                if file.name.startswith(prefix + dirname):
-                    extractedFile = archive.extractfile(file)
-                    newFileName = os.path.join(*file.name.split('/')[1:])
-                    newFileName = newFileName[len(self._path)-1:]
-                    newFileName = os.path.join(directory, newFileName)
-                    if os.path.exists(newFileName):
-                        assert os.path.isdir(newFileName), newFileName + \
-                                'should not be a file.'
-                        shutil.rmtree(newFileName)
-                    if extractedFile is None:
-                        os.mkdir(newFileName)
-                    else:
-                        with open(newFileName, 'ab') as fd:
-                            reload_imported = False
-                            for line in extractedFile.readlines():
-                                if sys.version_info[0] >= 3:
-                                    if 'import reload' in line.decode():
-                                        reload_imported = True
-                                    elif not reload_imported and \
-                                            'reload(' in line.decode():
-                                        fd.write('from imp import reload\n' \
-                                                .encode())
-                                        reload_imported = True
-                                fd.write(line)
-                    if newFileName.endswith('__init__.py'):
-                        with open(newFileName) as fd:
-                            lines = list(filter(lambda x:'import plugin' in x,
-                                fd.readlines()))
-                            if lines and lines[0].startswith('from . import'):
-                                # This should be already Python 3-compatible
-                                run_2to3 = False
+            run_2to3 = self.extract(archive, prefix, dirname)
         finally:
             archive.close()
             del archive
+
         if run_2to3:
-            try:
-                import lib2to3
-            except ImportError:
-                return _('Plugin is probably not compatible with your '
-                        'Python version (3.x) and could not be converted '
-                        'because 2to3 is not installed.')
-            import subprocess
-            fixers = []
-            subprocess.Popen(['2to3', '-wn', os.path.join(directory, plugin)]) \
-                    .wait()
-            return _('Plugin was designed for Python 2, but an attempt to '
-                    'convert it to Python 3 has been made. There is no '
-                    'garantee it will work, though.')
+            return self.run_2to3(directory, plugin)
         else:
             return _('Plugin successfully installed.')
+
+    def run_2to3(self, directory, plugin):
+        try:
+            import lib2to3
+        except ImportError:
+            return _('Plugin is probably not compatible with your '
+                    'Python version (3.x) and could not be converted '
+                    'because 2to3 is not installed.')
+        import subprocess
+        fixers = []
+        subprocess.Popen(['2to3', '-wn', os.path.join(directory, plugin)]) \
+                .wait()
+        return _('Plugin was designed for Python 2, but an attempt to '
+                'convert it to Python 3 has been made. There is no '
+                'garantee it will work, though.')
+
+    def extract(self, archive, prefix, dirname):
+        directories = conf.supybot.directories.plugins()
+        directory = self._getWritableDirectoryFromList(directories)
+        assert directory is not None, \
+                'No valid directory in supybot.directories.plugins.'
+        run_2to3 = sys.version_info[0] >= 3
+        for file in archive.getmembers():
+            if file.name.startswith(prefix + dirname):
+                extractedFile = archive.extractfile(file)
+                newFileName = os.path.join(*file.name.split('/')[1:])
+                newFileName = newFileName[len(self._path)-1:]
+                newFileName = os.path.join(directory, newFileName)
+                if os.path.exists(newFileName):
+                    assert os.path.isdir(newFileName), newFileName + \
+                            'should not be a file.'
+                    shutil.rmtree(newFileName)
+                if extractedFile is None:
+                    os.mkdir(newFileName)
+                else:
+                    with open(newFileName, 'ab') as fd:
+                        reload_imported = False
+                        for line in extractedFile.readlines():
+                            if sys.version_info[0] >= 3:
+                                if 'import reload' in line.decode():
+                                    reload_imported = True
+                                elif not reload_imported and \
+                                        'reload(' in line.decode():
+                                    fd.write('from imp import reload\n' \
+                                            .encode())
+                                    reload_imported = True
+                            fd.write(line)
+                if newFileName.endswith('__init__.py'):
+                    with open(newFileName) as fd:
+                        lines = list(filter(lambda x:'import plugin' in x,
+                            fd.readlines()))
+                        if lines and lines[0].startswith('from . import'):
+                            # This should be already Python 3-compatible
+                            run_2to3 = False
+        return run_2to3
 
     def getInfo(self, plugin):
         archive = self._download(plugin)
