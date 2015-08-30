@@ -1,20 +1,13 @@
 language: python
 sudo: false
 python:
-  - "2.6"
-  - "2.7"
-  - "3.2"
-  - "3.3"
-  - "3.4"
-  - "3.5-dev"
-  - "nightly"
-  - "pypy"
   - "pypy3"
 env:
-  - WITH_OPT_DEPS=true
-  - WITH_OPT_DEPS=false
+  - RUN=one
+  - RUN=two
+  - RUN=three
 install:
-    - if [ "$WITH_OPT_DEPS" = "true" ] ; then pip install -vr requirements.txt; fi
+    - pip install -vr requirements.txt
 # command to run tests, e.g. python setup.py test
 script:
   - echo $TRAVIS_PYTHON_VERSION
@@ -24,21 +17,3 @@ notifications:
     email: false
 matrix:
   fast_finish: true
-  allow_failures:
-    - python: "nightly"
-    - python: "pypy3" # https://bitbucket.org/pypy/pypy/issues/2129/local-variable-val-referenced-before
-  exclude:
-    - python: "2.6"
-      env: WITH_OPT_DEPS=false
-    - python: "3.2"
-      env: WITH_OPT_DEPS=false
-    - python: "3.3"
-      env: WITH_OPT_DEPS=false
-    - python: "3.5-dev"
-      env: WITH_OPT_DEPS=false
-    - python: "nightly"
-      env: WITH_OPT_DEPS=false
-    - python: "pypy"
-      env: WITH_OPT_DEPS=false
-    - python: "pypy3"
-      env: WITH_OPT_DEPS=false
