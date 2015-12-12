@@ -145,7 +145,7 @@ class SocketDriver(drivers.IrcDriver, drivers.ServersMixin):
             return
         try:
             cls._selecting[0] = True
-            for inst in cls._instances:
+            for inst in list(cls._instances):
                 # Do not use a list comprehension here, we have to edit the list
                 # and not to reassign it.
                 if not inst.connected or \
