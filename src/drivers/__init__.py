@@ -59,6 +59,9 @@ class IrcDriver(object):
     def reconnect(self, wait=False):
         raise NotImplementedError
 
+    def starttls(self):
+        raise NotImplementedError
+
     def name(self):
         return repr(self)
 
