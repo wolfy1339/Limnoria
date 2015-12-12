@@ -193,12 +193,13 @@ def newDriver(irc, moduleName=None):
     irc.driver = driver
     return driver
 
-def parseMsg(s):
+def parseIrcMsg(s):
     s = s.strip()
     if s:
         msg = ircmsgs.IrcMsg(s)
         return msg
     else:
         return None
+parseMsg = parseIrcMsg # Deprecated alias
 
 # vim:set shiftwidth=4 softtabstop=4 expandtab textwidth=79:

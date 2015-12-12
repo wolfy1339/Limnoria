@@ -54,7 +54,8 @@ except:
         pass
 
 
-class SocketDriver(drivers.IrcDriver, drivers.ServersMixin):
+class BaseSocketDriver(drivers.IrcDriver, drivers.ServersMixin):
+    """Protocol-agnostic socket-based driver."""
     _instances = []
     _selecting = [False] # We want it to be mutable.
     def __init__(self, irc):
@@ -68,7 +69,7 @@ class SocketDriver(drivers.IrcDriver, drivers.ServersMixin):
         self.servers = ()
         self.eagains = 0
         self.inbuffer = b''
-        self.outbuffer = ''
+        self.outbuffer = b''
         self.zombie = False
         self.connected = False
         self.writeCheckTime = None
@@ -125,13 +126,10 @@ class SocketDriver(drivers.IrcDriver, drivers.ServersMixin):
             while msgs[-1] is not None:
                 msgs.append(self.irc.takeMsg())
             del msgs[-1]
-            self.outbuffer += ''.join(map(str, msgs))
+            self.outbuffer += b''.join(msg.serialize() for msg in msgs)
         if self.outbuffer:
             try:
-                if minisix.PY2:
-                    sent = self.conn.send(self.outbuffer)
-                else:
-                    sent = self.conn.send(self.outbuffer.encode())
+                sent = self.conn.send(self.outbuffer)
                 self.outbuffer = self.outbuffer[sent:]
                 self.eagains = 0
             except socket.error as e:
@@ -192,14 +190,7 @@ class SocketDriver(drivers.IrcDriver, drivers.ServersMixin):
         try:
             self.inbuffer += self.conn.recv(1024)
             self.eagains = 0 # If we successfully recv'ed, we can reset this.
-            lines = self.inbuffer.split(b'\n')
-            self.inbuffer = lines.pop()
-            for line in lines:
-                line = decode_raw_line(line)
-
-                msg = drivers.parseMsg(line)
-                if msg is not None and self.irc is not None:
-                    self.irc.feedMsg(msg)
+            self.readInbuffer()
         except socket.timeout:
             pass
         except SSLError as e:
@@ -353,6 +344,29 @@ class SocketDriver(drivers.IrcDriver, drivers.ServersMixin):
             certfile = None
         self.conn = ssl.wrap_socket(self.conn, certfile=certfile)
 
+    def readInbuffer(self):
+        raise NotImplementedError
+
+class BaseTextSocketDriver(BaseSocketDriver):
+    """Driver for any protocol whose messages are separated by newline
+    characters."""
+    def readInbuffer(self):
+        lines = self.inbuffer.split(b'\n')
+        self.inbuffer = lines.pop()
+        for line in lines:
+            line = decode_raw_line(line)
+
+            msg = self.parseMsg(line)
+            if msg is not None and self.irc is not None:
+                self.irc.feedMsg(msg)
+
+    def parseMsg(self, line):
+        raise NotImplementedError
+
+class SocketDriver(BaseTextSocketDriver):
+    """Socket driver for IRC."""
+    def parseMsg(self, line):
+        return drivers.parseIrcMsg(line)
 
 Driver = SocketDriver
 

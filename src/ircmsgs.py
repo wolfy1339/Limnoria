@@ -220,6 +220,12 @@ class IrcMsg(object):
                     self._str = '%s\r\n' % self.command
         return self._str
 
+    def serialize(self):
+        if minisix.PY3:
+            return str(self).encode()
+        else:
+            return str(self)
+
     def __len__(self):
         return len(str(self))
 
