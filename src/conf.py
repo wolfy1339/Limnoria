@@ -781,13 +781,12 @@ registerGlobalValue(supybot.drivers, 'poll',
     driver should block waiting for input.""")))
 
 class ValidDriverModule(registry.OnlySomeStrings):
-    validStrings = ('default', 'Socket', 'Twisted')
+    validStrings = ('default', 'Socket')
 
 registerGlobalValue(supybot.drivers, 'module',
     ValidDriverModule('default', _("""Determines what driver module the 
-    bot will use. The default is Socket which is simple and stable 
-    and supports SSL. Twisted doesn't work if the IRC server which 
-    you are connecting to has IPv6 (most of them do).""")))
+    bot will use. The default is Socket, which is also the only one
+    currently supported.""")))
 
 registerGlobalValue(supybot.drivers, 'maxReconnectWait',
     registry.PositiveFloat(300.0, _("""Determines the maximum time the bot will
