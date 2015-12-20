@@ -682,7 +682,7 @@ class IrcState(IrcCommandDispatcher, log.Firewalled):
 # 'queue', and 'state', in addition to the standard nick/user/ident attributes.
 ###
 _callbacks = []
-class Irc(IrcCommandDispatcher, log.Firewalled):
+class BaseIrc(IrcCommandDispatcher, log.Firewalled):
     """The base class for an IRC connection.
 
     Handles PING commands already.
@@ -978,32 +978,6 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         self.capNegociationEnded = False
         self.requireStarttls = not network_config.ssl() and \
                 network_config.requireStarttls()
-        self.resetSasl()
-
-    def resetSasl(self):
-        network_config = conf.supybot.networks.get(self.network)
-        self.sasl_authenticated = False
-        self.sasl_username = network_config.sasl.username()
-        self.sasl_password = network_config.sasl.password()
-        self.sasl_ecdsa_key = network_config.sasl.ecdsa_key()
-        self.authenticate_decoder = None
-        self.sasl_next_mechanisms = []
-        self.sasl_current_mechanism = None
-
-        for mechanism in network_config.sasl.mechanisms():
-            if mechanism == 'ecdsa-nist256p-challenge' and \
-                    ecdsa and self.sasl_username and self.sasl_ecdsa_key:
-                self.sasl_next_mechanisms.append(mechanism)
-            elif mechanism == 'external' and (
-                    network_config.certfile() or
-                    conf.supybot.protocols.irc.certfile()):
-                self.sasl_next_mechanisms.append(mechanism)
-            elif mechanism == 'plain' and \
-                    self.sasl_username and self.sasl_password:
-                self.sasl_next_mechanisms.append(mechanism)
-
-        if self.sasl_next_mechanisms:
-            self.REQUEST_CAPABILITIES.add('sasl')
 
 
     REQUEST_CAPABILITIES = set(['account-notify', 'extended-join',
@@ -1062,87 +1036,6 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
             self.capNegociationEnded = True
             self.sendMsg(ircmsgs.IrcMsg(command='CAP', args=('END',)))
 
-    def sendSaslString(self, string):
-        for chunk in ircutils.authenticate_generator(string):
-            self.sendMsg(ircmsgs.IrcMsg(command='AUTHENTICATE',
-                args=(chunk,)))
-
-    def tryNextSaslMechanism(self):
-        if self.sasl_next_mechanisms:
-            self.sasl_current_mechanism = self.sasl_next_mechanisms.pop(0)
-            self.sendMsg(ircmsgs.IrcMsg(command='AUTHENTICATE',
-                args=(self.sasl_current_mechanism.upper(),)))
-        else:
-            self.sasl_current_mechanism = None
-            self.endCapabilityNegociation()
-
-    def filterSaslMechanisms(self, available):
-        available = set(map(str.lower, available))
-        self.sasl_next_mechanisms = [
-                x for x in self.sasl_next_mechanisms
-                if x.lower() in available]
-
-    def doAuthenticate(self, msg):
-        if not self.authenticate_decoder:
-            self.authenticate_decoder = ircutils.AuthenticateDecoder()
-        self.authenticate_decoder.feed(msg)
-        if not self.authenticate_decoder.ready:
-            return # Waiting for other messages
-        string = self.authenticate_decoder.get()
-        self.authenticate_decoder = None
-
-        mechanism = self.sasl_current_mechanism
-        if mechanism == 'ecdsa-nist256p-challenge':
-            if string == b'':
-                self.sendSaslString(self.sasl_username.encode('utf-8'))
-                return
-            try:
-                with open(self.sasl_ecdsa_key) as fd:
-                    private_key = SigningKey.from_pem(fd.read())
-                authstring = private_key.sign(base64.b64decode(msg.args[0].encode()))
-                self.sendSaslString(authstring)
-            except (BadDigestError, OSError, ValueError):
-                self.sendMsg(ircmsgs.IrcMsg(command='AUTHENTICATE',
-                    args=('*',)))
-                self.tryNextSaslMechanism()
-        elif mechanism == 'external':
-            self.sendSaslString(b'')
-        elif mechanism == 'plain':
-            authstring = b'\0'.join([
-                self.sasl_username.encode('utf-8'),
-                self.sasl_username.encode('utf-8'),
-                self.sasl_password.encode('utf-8'),
-            ])
-            self.sendSaslString(authstring)
-
-    def do903(self, msg):
-        log.info('%s: SASL authentication successful', self.network)
-        self.sasl_authenticated = True
-        self.endCapabilityNegociation()
-
-    def do904(self, msg):
-        log.warning('%s: SASL authentication failed', self.network)
-        self.tryNextSaslMechanism()
-
-    def do905(self, msg):
-        log.warning('%s: SASL authentication failed because the username or '
-                    'password is too long.', self.network)
-        self.tryNextSaslMechanism()
-
-    def do906(self, msg):
-        log.warning('%s: SASL authentication aborted', self.network)
-        self.tryNextSaslMechanism()
-
-    def do907(self, msg):
-        log.warning('%s: Attempted SASL authentication when we were already '
-                    'authenticated.', self.network)
-        self.tryNextSaslMechanism()
-
-    def do908(self, msg):
-        log.info('%s: Supported SASL mechanisms: %s',
-                 self.network, msg.args[1])
-        self.filterSaslMechanisms(set(msg.args[1].split(',')))
-
     def doCap(self, msg):
         subcommand = msg.args[1]
         if subcommand == 'ACK':
@@ -1165,10 +1058,7 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
                  self.network, caps)
         self.state.capabilities_ack.update(caps)
 
-        if 'sasl' in caps:
-            self.tryNextSaslMechanism()
-        else:
-            self.endCapabilityNegociation()
+        self.endCapabilityNegociation()
     def doCapNak(self, msg):
         if len(msg.args) != 3:
             log.warning('Bad CAP NAK from server: %r', msg)
@@ -1199,10 +1089,6 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
             self._addCapabilities(msg.args[2])
             common_supported_capabilities = set(self.state.capabilities_ls) & \
                     self.REQUEST_CAPABILITIES
-            if 'sasl' in self.state.capabilities_ls:
-                s = self.state.capabilities_ls['sasl']
-                if s is not None:
-                    self.filterSaslMechanisms(set(s.split(',')))
             if 'starttls' not in self.state.capabilities_ls and \
                     self.requireStarttls:
                 log.error('%s: Server does not support STARTTLS.', self.network)
@@ -1247,11 +1133,6 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         caps = msg.args[2].split()
         assert caps, 'Empty list of capabilities'
         self._addCapabilities(msg.args[2])
-        if not self.sasl_authenticated and 'sasl' in self.state.capabilities_ls:
-            self.resetSasl()
-            s = self.state.capabilities_ls['sasl']
-            if s is not None:
-                self.filterSaslMechanisms(set(s.split(',')))
         common_supported_unrequested_capabilities = (
                 set(self.state.capabilities_ls) &
                 self.REQUEST_CAPABILITIES -
@@ -1437,6 +1318,147 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         else:
             log.warning('Irc object killed twice: %s', utils.stackTrace())
 
+class SaslAwareIrc(BaseIrc):
+    def _setNonResettingVariables(self):
+        super(SaslAwareIrc, self)._setNonResettingVariables()
+        self.resetSasl()
+
+        if self.sasl_next_mechanisms:
+            self.REQUEST_CAPABILITIES.add('sasl')
+
+    def resetSasl(self):
+        network_config = conf.supybot.networks.get(self.network)
+        self.sasl_authenticated = False
+        self.sasl_username = network_config.sasl.username()
+        self.sasl_password = network_config.sasl.password()
+        self.sasl_ecdsa_key = network_config.sasl.ecdsa_key()
+        self.authenticate_decoder = None
+        self.sasl_next_mechanisms = []
+        self.sasl_current_mechanism = None
+
+        for mechanism in network_config.sasl.mechanisms():
+            if mechanism == 'ecdsa-nist256p-challenge' and \
+                    ecdsa and self.sasl_username and self.sasl_ecdsa_key:
+                self.sasl_next_mechanisms.append(mechanism)
+            elif mechanism == 'external' and (
+                    network_config.certfile() or
+                    conf.supybot.protocols.irc.certfile()):
+                self.sasl_next_mechanisms.append(mechanism)
+            elif mechanism == 'plain' and \
+                    self.sasl_username and self.sasl_password:
+                self.sasl_next_mechanisms.append(mechanism)
+
+    def sendSaslString(self, string):
+        for chunk in ircutils.authenticate_generator(string):
+            self.sendMsg(ircmsgs.IrcMsg(command='AUTHENTICATE',
+                args=(chunk,)))
+
+    def tryNextSaslMechanism(self):
+        if self.sasl_next_mechanisms:
+            self.sasl_current_mechanism = self.sasl_next_mechanisms.pop(0)
+            self.sendMsg(ircmsgs.IrcMsg(command='AUTHENTICATE',
+                args=(self.sasl_current_mechanism.upper(),)))
+        else:
+            self.sasl_current_mechanism = None
+            self.endCapabilityNegociation()
+
+    def filterSaslMechanisms(self, available):
+        available = set(map(str.lower, available))
+        self.sasl_next_mechanisms = [
+                x for x in self.sasl_next_mechanisms
+                if x.lower() in available]
+
+    def doAuthenticate(self, msg):
+        if not self.authenticate_decoder:
+            self.authenticate_decoder = ircutils.AuthenticateDecoder()
+        self.authenticate_decoder.feed(msg)
+        if not self.authenticate_decoder.ready:
+            return # Waiting for other messages
+        string = self.authenticate_decoder.get()
+        self.authenticate_decoder = None
+
+        mechanism = self.sasl_current_mechanism
+        if mechanism == 'ecdsa-nist256p-challenge':
+            if string == b'':
+                self.sendSaslString(self.sasl_username.encode('utf-8'))
+                return
+            try:
+                with open(self.sasl_ecdsa_key) as fd:
+                    private_key = SigningKey.from_pem(fd.read())
+                authstring = private_key.sign(base64.b64decode(msg.args[0].encode()))
+                self.sendSaslString(authstring)
+            except (BadDigestError, OSError, ValueError):
+                self.sendMsg(ircmsgs.IrcMsg(command='AUTHENTICATE',
+                    args=('*',)))
+                self.tryNextSaslMechanism()
+        elif mechanism == 'external':
+            self.sendSaslString(b'')
+        elif mechanism == 'plain':
+            authstring = b'\0'.join([
+                self.sasl_username.encode('utf-8'),
+                self.sasl_username.encode('utf-8'),
+                self.sasl_password.encode('utf-8'),
+            ])
+            self.sendSaslString(authstring)
+
+    def do903(self, msg):
+        log.info('%s: SASL authentication successful', self.network)
+        self.sasl_authenticated = True
+        self.endCapabilityNegociation()
+
+    def do904(self, msg):
+        log.warning('%s: SASL authentication failed', self.network)
+        self.tryNextSaslMechanism()
+
+    def do905(self, msg):
+        log.warning('%s: SASL authentication failed because the username or '
+                    'password is too long.', self.network)
+        self.tryNextSaslMechanism()
+
+    def do906(self, msg):
+        log.warning('%s: SASL authentication aborted', self.network)
+        self.tryNextSaslMechanism()
+
+    def do907(self, msg):
+        log.warning('%s: Attempted SASL authentication when we were already '
+                    'authenticated.', self.network)
+        self.tryNextSaslMechanism()
+
+    def do908(self, msg):
+        log.info('%s: Supported SASL mechanisms: %s',
+                 self.network, msg.args[1])
+        self.filterSaslMechanisms(set(msg.args[1].split(',')))
+
+    def doCapAck(self, msg):
+        if len(msg.args) != 3:
+            log.warning('Bad CAP ACK from server: %r', msg)
+            return
+        caps = msg.args[2].split()
+        assert caps, 'Empty list of capabilities'
+        log.info('%s: Server acknowledged capabilities: %L',
+                 self.network, caps)
+        self.state.capabilities_ack.update(caps)
+
+        if 'sasl' in caps:
+            self.tryNextSaslMechanism()
+        else:
+            self.endCapabilityNegociation()
+
+    def doCapLs(self, msg):
+        super(SaslAwareIrc, self).doCapLs(msg)
+        if 'sasl' in self.state.capabilities_ls:
+            s = self.state.capabilities_ls['sasl']
+            if s is not None:
+                self.filterSaslMechanisms(set(s.split(',')))
+    def doCapNew(self, msg):
+        super(SaslAwareIrc, self).doCapNew(msg)
+        if not self.sasl_authenticated and 'sasl' in self.state.capabilities_ls:
+            self.resetSasl()
+            s = self.state.capabilities_ls['sasl']
+            if s is not None:
+                self.filterSaslMechanisms(set(s.split(',')))
+
+class Irc(SaslAwareIrc):
     def __hash__(self):
         return id(self)
 
