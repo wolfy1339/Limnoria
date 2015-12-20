@@ -717,7 +717,7 @@ registerGroup(supybot.commands, 'defaultPlugins',
     commands."""))
 registerGlobalValue(supybot.commands.defaultPlugins, 'importantPlugins',
     registry.SpaceSeparatedSetOfStrings(
-        ['Admin', 'Channel', 'Config', 'Misc', 'Owner', 'User'],
+        ['Admin', 'Authentication', 'Channel', 'Config', 'Misc', 'Owner', 'User'],
         _("""Determines what plugins automatically get precedence over all
         other plugins when selecting a default plugin for a command.  By
         default, this includes the standard loaded plugins.  You probably
@@ -847,6 +847,9 @@ registerGlobalValue(supybot.directories, 'backup',
     Directory('backup', _("""Determines what directory backup data is put
     into. Set it to /dev/null to disable backup (it is a special value,
     so it also works on Windows and systems without /dev/null).""")))
+registerGlobalValue(supybot.directories, 'migrations',
+    Directory('migrations', _("""Determines what directory will hold
+    rollback scripts and this list of already enabled upgrades.""")))
 registerGlobalValue(supybot.directories.data, 'tmp',
     DataFilenameDirectory('tmp', _("""Determines what directory temporary files
     are put into.""")))
