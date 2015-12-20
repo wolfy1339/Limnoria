@@ -74,7 +74,7 @@ try:
 except ImportError:
     sys.stderr.write("""Error:
     You are running a mix of Limnoria and stock Supybot code. Although you run
-    one of Limnoria\'s executables are installed, Python tries to load stock
+    one of Limnoria\'s executables installed, Python tries to load stock
     Supybot\'s library. To fix this issue, uninstall Supybot
     ("%s -m pip uninstall supybot" should do the job)
     and install Limnoria again.
@@ -237,6 +237,9 @@ if __name__ == '__main__':
         sys.exit(-1)
     import supybot.conf as conf
     import supybot.world as world
+    import supybot.migrations as migrations
+    migrations.do_downgrades()
+    migrations.update_upgrades_txt()
     i18n.import_conf()
     world.starting = True
 
