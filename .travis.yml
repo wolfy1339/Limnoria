@@ -15,7 +15,7 @@ env:
   - WITH_OPT_DEPS=false
 install:
     - if [ "$WITH_OPT_DEPS" = "true" ] ; then pip install -vr requirements.txt; fi
-    - if [ "$TRAVIS_PYTHON_VERSION" ~= ^3\. ] ; then pip install -vr git+https://github.com/ProgVal/irctest.git; fi
+    - if [ "$TRAVIS_PYTHON_VERSION" =~ ^3\. ] ; then pip install -vr git+https://github.com/ProgVal/irctest.git; fi
 # command to run tests, e.g. python setup.py test
 script:
   - echo $TRAVIS_PYTHON_VERSION
