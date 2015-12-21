@@ -250,6 +250,9 @@ def main():
     import supybot.log as log
     log._stdoutHandler.setLevel(100) # *Nothing* gets through this!
     import supybot.conf as conf
+    import supybot.migrations as migrations
+    migrations.register_migrations(do_upgrades=False)
+    migrations.update_upgrades_txt()
     i18n.import_conf() # It imports the real conf module
     import supybot.plugin as plugin
 

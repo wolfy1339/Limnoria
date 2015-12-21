@@ -80,12 +80,15 @@ def do_downgrades():
 
 def update_upgrades_txt():
     with open(upgrades_path, 'a', encoding='utf8') as fd:
-        fd.write('\n'.join(done_upgrades))
+        for name in done_upgrades:
+            fd.write(name)
+            fd.write('\n')
 
 
 
-def add_authentication_plugin_to_list():
-    conf.registerPlugin('Authentication')
-    return None # No downgrade script.
-register('2015-12-20_add_authentication_plugin',
-        add_authentication_plugin_to_list)
+def register_migrations(do_upgrades):
+    def add_authentication_plugin_to_list():
+        conf.registerPlugin('Authentication')
+        return None # No downgrade script.
+    register('2015-12-20_add_authentication_plugin',
+            add_authentication_plugin_to_list)

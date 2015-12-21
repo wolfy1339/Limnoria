@@ -238,6 +238,7 @@ if __name__ == '__main__':
     import supybot.conf as conf
     import supybot.world as world
     import supybot.migrations as migrations
+    migrations.register_migrations(do_upgrades=True)
     migrations.do_downgrades()
     migrations.update_upgrades_txt()
     i18n.import_conf()
