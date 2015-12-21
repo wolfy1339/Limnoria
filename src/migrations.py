@@ -49,7 +49,7 @@ def register(name, upgrade_function):
         # This migration was already done and its downgrade script was
         # installed.
         return False
-    log.critical('Upgrading feature %s' % name)
+    log.info('Upgrading feature %s' % name)
     downgrade_script = upgrade_function()
     done_upgrades.add(name)
     if downgrade_script is None:
@@ -64,7 +64,7 @@ def do_downgrades():
     global done_upgrades
     assert registered_upgrades.issubset(done_upgrades)
     for name in sorted(done_upgrades - registered_upgrades):
-        log.critical('Downgrading feature %s' % name)
+        log.info('Downgrading feature %s' % name)
         filename = '%s.py' % name
         path = conf.supybot.directories.migrations.dirize(filename)
         if not os.path.isfile(path):
