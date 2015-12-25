@@ -28,13 +28,34 @@
 
 ###
 
+import functools
+
 from supybot.test import *
+import supybot.sasl as sasl
+import supybot.irclib as irclib
+
+def set_variables(L):
+    def decorator(f):
+        @functools.wraps(f)
+        def newf(self):
+            try:
+                for (var, value) in L:
+                    var.setValue(value)
+                return f(self)
+            finally:
+                for (var, _) in L:
+                    var.setValue('')
+        return newf
+    return decorator
 
 
-class AdminTestCase(PluginTestCase):
-    plugins = ('Authentication',)
+class AuthenticationTestCase(SupyTestCase):
+    def setUp(self):
+        self.nick = 'tester'
+        self.prefix = 'tester!foo@bar'
+        self.irc = irclib.Irc('test')
 
-    def startCapNegociation(self, caps='sasl'):
+    def startCapNegotiation(self, caps='sasl'):
         m = self.irc.takeMsg()
         self.failUnless(m.command == 'CAP', 'Expected CAP, got %r.' % m)
         self.failUnless(m.args == ('LS', '302'), 'Expected CAP LS 302, got %r.' % m)
@@ -57,25 +78,20 @@ class AdminTestCase(PluginTestCase):
             self.irc.feedMsg(ircmsgs.IrcMsg(command='CAP',
                 args=('*', 'ACK', 'sasl')))
 
-    def endCapNegociation(self):
+    def endCapNegotiation(self):
         m = self.irc.takeMsg()
         self.failUnless(m.command == 'CAP', 'Expected CAP, got %r.' % m)
         self.assertEqual(m.args, ('END',), m)
 
+    @set_variables([
+        (conf.supybot.networks.test.sasl.username, 'jilles'),
+        (conf.supybot.networks.test.sasl.password, 'sesame'),
+        ])
     def testPlain(self):
-        try:
-            conf.supybot.networks.test.sasl.username.setValue('jilles')
-            conf.supybot.networks.test.sasl.password.setValue('sesame')
-            self.irc = irclib.Irc('test')
-        finally:
-            conf.supybot.networks.test.sasl.username.setValue('')
-            conf.supybot.networks.test.sasl.password.setValue('')
-        state = self.irc.getCallback('Authentication') \
-                ._sasl_states[self.irc.network]
-        self.assertEqual(state.sasl_current_mechanism, None)
-        self.assertEqual(state.sasl_next_mechanisms, ['plain'])
+        self.irc = irclib.Irc('test')
+        state = sasl.SaslState(self.irc.network)
 
-        self.startCapNegociation()
+        self.startCapNegotiation()
 
         m = self.irc.takeMsg()
         self.assertEqual(m, ircmsgs.IrcMsg(command='AUTHENTICATE',
@@ -91,24 +107,20 @@ class AdminTestCase(PluginTestCase):
             args=(self.nick, self.prefix, 'jilles')))
         self.irc.feedMsg(ircmsgs.IrcMsg(command='903', args=(self.nick,)))
 
-        self.endCapNegociation()
+        self.endCapNegotiation()
 
+    @set_variables([
+        (conf.supybot.networks.test.sasl.username, 'jilles'),
+        (conf.supybot.networks.test.sasl.password, 'sesame'),
+        (conf.supybot.networks.test.certfile, 'foo'),
+        ])
     def testExternalFallbackToPlain(self):
-        try:
-            conf.supybot.networks.test.sasl.username.setValue('jilles')
-            conf.supybot.networks.test.sasl.password.setValue('sesame')
-            conf.supybot.networks.test.certfile.setValue('foo')
-            self.irc = irclib.Irc('test')
-        finally:
-            conf.supybot.networks.test.sasl.username.setValue('')
-            conf.supybot.networks.test.sasl.password.setValue('')
-            conf.supybot.networks.test.certfile.setValue('')
-        state = self.irc.getCallback('Authentication') \
-                ._sasl_states[self.irc.network]
+        self.irc = irclib.Irc('test')
+        state = sasl.SaslState(self.irc.network)
         self.assertEqual(state.sasl_current_mechanism, None)
         self.assertEqual(state.sasl_next_mechanisms, ['external', 'plain'])
 
-        self.startCapNegociation()
+        self.startCapNegotiation()
 
         m = self.irc.takeMsg()
         self.assertEqual(m, ircmsgs.IrcMsg(command='AUTHENTICATE',
@@ -131,24 +143,20 @@ class AdminTestCase(PluginTestCase):
             args=(self.nick, self.prefix, 'jilles')))
         self.irc.feedMsg(ircmsgs.IrcMsg(command='903', args=(self.nick,)))
 
-        self.endCapNegociation()
+        self.endCapNegotiation()
 
+    @set_variables([
+        (conf.supybot.networks.test.sasl.username, 'jilles'),
+        (conf.supybot.networks.test.sasl.password, 'sesame'),
+        (conf.supybot.networks.test.certfile, 'foo'),
+        ])
     def testFilter(self):
-        try:
-            conf.supybot.networks.test.sasl.username.setValue('jilles')
-            conf.supybot.networks.test.sasl.password.setValue('sesame')
-            conf.supybot.networks.test.certfile.setValue('foo')
-            self.irc = irclib.Irc('test')
-        finally:
-            conf.supybot.networks.test.sasl.username.setValue('')
-            conf.supybot.networks.test.sasl.password.setValue('')
-            conf.supybot.networks.test.certfile.setValue('')
-        state = self.irc.getCallback('Authentication') \
-                ._sasl_states[self.irc.network]
+        self.irc = irclib.Irc('test')
+        state = sasl.SaslState(self.irc.network)
         self.assertEqual(state.sasl_current_mechanism,  None)
         self.assertEqual(state.sasl_next_mechanisms, ['external', 'plain'])
 
-        self.startCapNegociation(caps='sasl=foo,plain,bar')
+        self.startCapNegotiation(caps='sasl=foo,plain,bar')
 
         m = self.irc.takeMsg()
         self.assertEqual(m, ircmsgs.IrcMsg(command='AUTHENTICATE',
@@ -164,24 +172,21 @@ class AdminTestCase(PluginTestCase):
             args=(self.nick, self.prefix, 'jilles')))
         self.irc.feedMsg(ircmsgs.IrcMsg(command='903', args=(self.nick,)))
 
-        self.endCapNegociation()
+        self.endCapNegotiation()
 
+    @set_variables([
+        (conf.supybot.networks.test.sasl.username, 'jilles'),
+        (conf.supybot.networks.test.sasl.password, 'sesame'),
+        ])
     def testReauthenticate(self):
-        try:
-            conf.supybot.networks.test.sasl.username.setValue('jilles')
-            conf.supybot.networks.test.sasl.password.setValue('sesame')
-            self.irc = irclib.Irc('test')
-        finally:
-            conf.supybot.networks.test.sasl.username.setValue('')
-            conf.supybot.networks.test.sasl.password.setValue('')
-        state = self.irc.getCallback('Authentication') \
-                ._sasl_states[self.irc.network]
+        self.irc = irclib.Irc('test')
+        state = sasl.SaslState(self.irc.network)
         self.assertEqual(state.sasl_current_mechanism, None)
         self.assertEqual(state.sasl_next_mechanisms, ['plain'])
 
-        self.startCapNegociation(caps='')
+        self.startCapNegotiation(caps='')
 
-        self.endCapNegociation()
+        self.endCapNegotiation()
 
         while self.irc.takeMsg():
             pass
@@ -224,5 +229,3 @@ class AdminTestCase(PluginTestCase):
             args=(self.nick, self.prefix, 'jilles')))
         self.irc.feedMsg(ircmsgs.IrcMsg(command='903', args=(self.nick,)))
 
-
-# vim:set shiftwidth=4 tabstop=4 expandtab textwidth=79:

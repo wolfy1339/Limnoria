@@ -141,7 +141,7 @@ class IrcCallback(IrcCommandDispatcher, log.Firewalled):
         """Makes the callback die.  Called when the parent Irc object dies."""
         pass
 
-    def hold_capability_negociation(self, irc):
+    def hold_capability_negotiation(self, irc):
         """Determines whether the core should wait for this plugin before
         sending CAP END."""
         return False
@@ -703,7 +703,9 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
                         '333', '353', '332', '366', '005'])
     # We specifically want these callbacks to be common between all Ircs,
     # that's why we don't do the normal None default with a check.
-    def __init__(self, network, callbacks=_callbacks):
+    def __init__(self, network, callbacks=None):
+        if callbacks is None:
+            callbacks = list(_callbacks)
         self.zombie = False
         world.ircs.append(self)
         self.network = network
@@ -717,6 +719,7 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         self._queueConnectMessages()
         self.startedSync = ircutils.IrcDict()
         self.monitoring = ircutils.IrcDict()
+        self._initial_cap_ls_handled = False
         for callback in callbacks:
             callback.onNewIrc(self)
 
@@ -963,6 +966,8 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         self.fastqueue.reset()
         self.startedSync.clear()
         for callback in self.callbacks:
+            # TODO: pass self as an argument. But this would break the
+            # plugin API.
             callback.reset()
         self._queueConnectMessages()
 
@@ -985,7 +990,7 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         self.startedAt = time.time()
         self.lastping = time.time()
         self.outstandingPing = False
-        self.capNegociationEnded = False
+        self.capNegotiationEnded = False
         self.requireStarttls = not network_config.ssl() and \
                 network_config.requireStarttls()
 
@@ -1041,12 +1046,18 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
 
         self.sendMsg(ircmsgs.user(self.ident, self.user))
 
-    def endCapabilityNegociation(self):
-        if not self.capNegociationEnded:
+    def endCapabilityNegotiation(self):
+        if not self.capNegotiationEnded:
             for cb in self.callbacks:
-                if cb.hold_capability_negociation(self):
+                if cb.hold_capability_negotiation(self):
+                    log.debug('Not sending CAP END, %s holds cap negotiation',
+                            cb.name())
                     return
-            self.capNegociationEnded = True
+            if not self._initial_cap_ls_handled:
+                log.debug('Not sending CAP END, initial CAP LS not yet '
+                        'handled.')
+                return
+            self.capNegotiationEnded = True
             self.sendMsg(ircmsgs.IrcMsg(command='CAP', args=('END',)))
 
     def doCap(self, msg):
@@ -1071,7 +1082,7 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
                  self.network, caps)
         self.state.capabilities_ack.update(caps)
 
-        self.endCapabilityNegociation()
+        self.endCapabilityNegotiation()
     def doCapNak(self, msg):
         if len(msg.args) != 3:
             log.warning('Bad CAP NAK from server: %r', msg)
@@ -1081,7 +1092,7 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
         self.state.capabilities_nak.update(caps)
         log.warning('%s: Server refused capabilities: %L',
                     self.network, caps)
-        self.endCapabilityNegociation()
+        self.endCapabilityNegotiation()
     def _addCapabilities(self, capstring):
         for item in capstring.split():
             while item.startswith(('=', '~')):
@@ -1112,12 +1123,13 @@ class Irc(IrcCommandDispatcher, log.Firewalled):
             # NOTE: Capabilities are requested in alphabetic order, because
             # sets are unordered, and their "order" is nondeterministic.
             # This is needed for the tests.
+            self._initial_cap_ls_handled = True
             if common_supported_capabilities:
                 caps = ' '.join(sorted(common_supported_capabilities))
                 self.sendMsg(ircmsgs.IrcMsg(command='CAP',
                     args=('REQ', caps)))
             else:
-                self.endCapabilityNegociation()
+                self.endCapabilityNegotiation()
         else:
             log.warning('Bad CAP LS from server: %r', msg)
             return

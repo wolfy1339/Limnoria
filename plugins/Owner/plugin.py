@@ -38,6 +38,7 @@ import linecache
 import re
 
 import supybot.log as log
+import supybot.sasl as sasl
 import supybot.conf as conf
 import supybot.i18n as i18n
 import supybot.utils as utils

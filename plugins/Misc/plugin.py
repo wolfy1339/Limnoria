@@ -311,7 +311,8 @@ class Misc(callbacks.Plugin):
                 irc.reply(_.__call__(cbs[0].getCommandHelp(command, False)))
         else:
             plugins = [cb.name() for cb in irc.callbacks
-                       if self.isPublic(cb)]
+                       if isinstance(cb, callbacks.BasePlugin) and
+                       self.isPublic(cb)]
             s = format(_('There is no command %q.'),
                         callbacks.formatCommand(command))
             if command[0].lower() in map(str.lower, plugins):

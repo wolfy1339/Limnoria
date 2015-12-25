@@ -35,21 +35,7 @@ try:
 except ImportError:
     ecdsa = False
 
-import supybot.conf as conf
-import supybot.world as world
-import supybot.utils as utils
-from supybot.commands import *
-import supybot.plugins as plugins
-import supybot.ircmsgs as ircmsgs
-import supybot.ircutils as ircutils
-import supybot.callbacks as callbacks
-try:
-    from supybot.i18n import PluginInternationalization
-    _ = PluginInternationalization('Authentication')
-except ImportError:
-    # Placeholder that allows to run the plugin on a bot
-    # without the i18n module
-    _ = lambda x: x
+from . import callbacks, conf, log, irclib, ircmsgs, ircutils, world
 
 class SaslState:
     """Container."""
@@ -76,17 +62,14 @@ class SaslState:
                     self.sasl_username and self.sasl_password:
                 self.sasl_next_mechanisms.append(mechanism)
 
-class Authentication(callbacks.Plugin):
+class Authentication(irclib.IrcCallback):
     """Authenticates the bot to networks."""
-    def __init__(self, irc):
-        super(Authentication, self).__init__(irc)
+    def __init__(self):
+        super(Authentication, self).__init__()
         self._sasl_states = {}
         self.authenticate_decoder = None
-        for irc in world.ircs:
-            if not irc.capNegociationEnded:
-                self.onNewIrc(irc)
 
-    def hold_capability_negociation(self, irc):
+    def hold_capability_negotiation(self, irc):
         return irc.network in self._sasl_states
 
     def onNewIrc(self, irc):
@@ -109,7 +92,7 @@ class Authentication(callbacks.Plugin):
         else:
             state.sasl_current_mechanism = None
             del self._sasl_states[irc.network]
-            irc.endCapabilityNegociation()
+            irc.endCapabilityNegotiation()
 
     def filterSaslMechanisms(self, irc, available):
         available = set(map(str.lower, available))
@@ -155,34 +138,34 @@ class Authentication(callbacks.Plugin):
 
     def do900(self, irc, msg):
         account = msg.args[2]
-        self.log.info('%s: SASL authenticated as %s', irc.network, account)
+        log.info('%s: SASL authenticated as %s', irc.network, account)
         irc.state.authentication = account
 
     def do903(self, irc, msg):
-        self.log.info('%s: SASL authentication successful', irc.network)
+        log.info('%s: SASL authentication successful', irc.network)
         del self._sasl_states[irc.network]
-        irc.endCapabilityNegociation()
+        irc.endCapabilityNegotiation()
 
     def do904(self, irc, msg):
-        self.log.warning('%s: SASL authentication failed', irc.network)
+        log.warning('%s: SASL authentication failed', irc.network)
         self.tryNextSaslMechanism(irc)
 
     def do905(self, irc, msg):
-        self.log.warning('%s: SASL authentication failed because the '
+        log.warning('%s: SASL authentication failed because the '
                     'username or password is too long.', irc.network)
         self.tryNextSaslMechanism(irc)
 
     def do906(self, irc, msg):
-        self.log.warning('%s: SASL authentication aborted', irc.network)
+        log.warning('%s: SASL authentication aborted', irc.network)
         self.tryNextSaslMechanism(irc)
 
     def do907(self, irc, msg):
-        self.log.warning('%s: Attempted SASL authentication when we were already '
+        log.warning('%s: Attempted SASL authentication when we were already '
                     'authenticated.', irc.network)
         self.tryNextSaslMechanism(irc)
 
     def do908(self, irc, msg):
-        self.log.info('%s: Supported SASL mechanisms: %s',
+        log.info('%s: Supported SASL mechanisms: %s',
                  irc.network, msg.args[1])
         self.filterSaslMechanisms(irc, set(msg.args[1].split(',')))
 
@@ -199,7 +182,7 @@ class Authentication(callbacks.Plugin):
 
     def doCapAck(self, irc, msg):
         if len(msg.args) != 3:
-            self.log.warning('Bad CAP ACK from server: %r', msg)
+            log.warning('Bad CAP ACK from server: %r', msg)
             return
         caps = msg.args[2].split()
 
@@ -212,12 +195,12 @@ class Authentication(callbacks.Plugin):
             self.tryNextSaslMechanism(irc)
 
     def doCapLs(self, irc, msg):
-        if msg.args[0] == '*':
+        if len(msg.args[0]) != 4:
             # Last message
-            if 'sasl' not in irc.state.capabilities_ls:
-                if irc.network in self._sasl_states:
-                    del self._sasl_states[irc.network]
-                irc.endCapabilityNegociation()
+            if 'sasl' not in irc.state.capabilities_ls and \
+                    irc.network in self._sasl_states:
+                del self._sasl_states[irc.network]
+                irc.endCapabilityNegotiation()
 
     def doCapNew(self, irc, msg):
         if not irc.state.authentication and 'sasl' in irc.state.capabilities_ls:
@@ -226,8 +209,6 @@ class Authentication(callbacks.Plugin):
             if s is not None:
                 self.filterSaslMechanisms(irc, set(s.split(',')))
 
+authentication = Authentication()
+irclib._callbacks.append(authentication)
 
-Class = Authentication
-
-
-# vim:set shiftwidth=4 softtabstop=4 expandtab textwidth=79:
