@@ -62,10 +62,10 @@ class SaslState:
                     self.sasl_username and self.sasl_password:
                 self.sasl_next_mechanisms.append(mechanism)
 
-class Authentication(irclib.IrcCallback):
+class SaslCallback(irclib.IrcCallback):
     """Authenticates the bot to networks."""
     def __init__(self):
-        super(Authentication, self).__init__()
+        super(SaslCallback, self).__init__()
         self._sasl_states = {}
         self.authenticate_decoder = None
 
@@ -209,6 +209,6 @@ class Authentication(irclib.IrcCallback):
             if s is not None:
                 self.filterSaslMechanisms(irc, set(s.split(',')))
 
-authentication = Authentication()
+authentication = SaslCallback()
 irclib._callbacks.append(authentication)
 
