@@ -396,7 +396,8 @@ class Aka(callbacks.Plugin):
         if len(args) > 1 and \
                 callbacks.canonicalName(args[0]) != self.canonicalName():
             for cb in dynamic.irc.callbacks: # including this plugin
-                if cb.isCommandMethod(' '.join(args[0:-1])):
+                if isinstance(cb, callbacks.Commands) and \
+                        cb.isCommandMethod(' '.join(args[0:-1])):
                     return False
         if minisix.PY2 and isinstance(name, str):
             name = name.decode('utf8')

@@ -231,8 +231,9 @@ class Misc(callbacks.Plugin):
                 irc.reply(format('%L', plugins))
             else:
                 names = [cb.name() for cb in irc.callbacks
-                         if (private and not self.isPublic(cb)) or
-                            (not private and self.isPublic(cb))]
+                         if isinstance(cb, callbacks.BasePlugin) and
+                         ((private and not self.isPublic(cb)) or
+                            (not private and self.isPublic(cb)))]
                 names.sort()
                 if names:
                     irc.reply(format('%L', names))
