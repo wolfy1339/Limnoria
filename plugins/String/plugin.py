@@ -45,8 +45,6 @@ import supybot.callbacks as callbacks
 from supybot.i18n import PluginInternationalization, internationalizeDocstring
 _ = PluginInternationalization('String')
 
-import multiprocessing
-
 class String(callbacks.Plugin):
     """Provides useful commands for manipulating characters and strings."""
     @internationalizeDocstring

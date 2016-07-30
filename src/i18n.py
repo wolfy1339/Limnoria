@@ -291,7 +291,7 @@ class _PluginInternationalization:
         except IOError: # File doesn't exist
             pass
 
-        functions = locals()
+        functions = locals().copy()
         functions.pop('self')
         self._l10nFunctions = functions
             # Remove old functions and come back to the native language

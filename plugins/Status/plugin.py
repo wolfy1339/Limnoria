@@ -32,7 +32,6 @@ import os
 import sys
 import time
 import threading
-import multiprocessing
 import subprocess
 
 import supybot.conf as conf
@@ -106,6 +105,11 @@ class Status(callbacks.Plugin):
         Returns the number of processes that have been spawned, and list of
         ones that are still active.
         """
+        try:
+            import multiprocessing
+        except ImportError:
+            irc.error(_('This bot runs in an interpreter that does not '
+                'provide the "multiprocessing" module.'))
         ps = [multiprocessing.current_process().name]
         ps = ps + [p.name for p in multiprocessing.active_children()]
         s = format('I have spawned %n; %n %b still currently active: %L.',

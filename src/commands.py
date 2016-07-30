@@ -32,11 +32,21 @@
 Includes wrappers for commands.
 """
 
+import sys
 import time
 import getopt
 import inspect
 import threading
-import multiprocessing #python2.6 or later!
+
+if sys.platform.lower().startswith('java'):
+    if sys.version_info[0] == 2:
+        from Queue import Queue
+    else:
+        # Dead code for now, but let's hope Jython supports Python 3
+        # one day!
+        from queue import Queue
+else:
+    from multiprocessing import Queue
 
 try:
     import resource
@@ -94,7 +104,7 @@ def process(f, *args, **kwargs):
             raise e
     
     try:
-        q = multiprocessing.Queue()
+        q = Queue()
     except OSError:
         log.error('Using multiprocessing.Queue raised an OSError.\n'
                 'This is probably caused by your system denying semaphore\n'

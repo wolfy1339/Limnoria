@@ -38,7 +38,14 @@ import time
 import atexit
 import select
 import threading
-import multiprocessing
+
+if sys.platform.lower().startswith('java'):
+    # Jython does not have 'multiprocessing', threads can be used instead.
+    # http://stackoverflow.com/q/9100909/539465
+    from threading import Thread as Process
+else:
+    print(platform.system())
+    from multiprocessing import Process
 
 import re
 
@@ -64,7 +71,7 @@ class SupyThread(threading.Thread, object):
         log.debug('Spawning thread %q.', self.getName())
 
 processesSpawned = 1 # Starts at one for the initial process.
-class SupyProcess(multiprocessing.Process):
+class SupyProcess(Process):
     def __init__(self, *args, **kwargs):
         global processesSpawned
         processesSpawned += 1

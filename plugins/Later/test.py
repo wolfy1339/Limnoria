@@ -92,13 +92,15 @@ class LaterTestCase(ChannelPluginTestCase):
         real_time = time.time
         def fake_time():
             return real_time() + 62
-        time.time = fake_time
-        self.irc.feedMsg(ircmsgs.privmsg(self.channel, 'something',
-                                         prefix='bar!baz@qux'))
-        m = self.getMsg(' ')
-        self.assertEqual(str(m).strip(),
-                'PRIVMSG #test :bar: Sent 1 minute ago: <test> more stuff')
-        time.time = real_time
+        try:
+            time.time = fake_time
+            self.irc.feedMsg(ircmsgs.privmsg(self.channel, 'something',
+                                             prefix='bar!baz@qux'))
+            m = self.getMsg(' ')
+            self.assertEqual(str(m).strip(),
+                    'PRIVMSG #test :bar: Sent 1 minute ago: <test> more stuff')
+        finally:
+            time.time = real_time
         
 # vim:set shiftwidth=4 softtabstop=4 expandtab textwidth=79:
 

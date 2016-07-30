@@ -452,6 +452,8 @@ class ChannelPluginTestCase(PluginTestCase):
             return
         PluginTestCase.setUp(self)
         self.irc.feedMsg(ircmsgs.join(self.channel, prefix=self.prefix))
+        if sys.platform.startswith('java'):
+            time.sleep(1)
         m = self.irc.takeMsg()
         self.failIf(m is None, 'No message back from joining channel.')
         self.assertEqual(m.command, 'MODE')
