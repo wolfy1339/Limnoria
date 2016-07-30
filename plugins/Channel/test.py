@@ -258,11 +258,19 @@ class ChannelTestCase(ChannelPluginTestCase):
 
     def testPart(self):
         def getAfterJoinMessages():
+            if sys.platform.startswith('java'):
+                time.sleep(1)
             m = self.irc.takeMsg()
             self.assertEqual(m.command, 'MODE')
             m = self.irc.takeMsg()
+            if m is None:
+                time.sleep(2)
+                m = self.irc.takeMsg()
             self.assertEqual(m.command, 'MODE')
             m = self.irc.takeMsg()
+            if m is None:
+                time.sleep(2)
+                m = self.irc.takeMsg()
             self.assertEqual(m.command, 'WHO')
         self.assertError('part #foo')
         self.assertRegexp('part #foo', 'not in')

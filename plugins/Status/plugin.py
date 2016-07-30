@@ -109,7 +109,7 @@ class Status(callbacks.Plugin):
             import multiprocessing
         except ImportError:
             irc.error(_('This bot runs in an interpreter that does not '
-                'provide the "multiprocessing" module.'))
+                'provide the "multiprocessing" module.'), Raise=True)
         ps = [multiprocessing.current_process().name]
         ps = ps + [p.name for p in multiprocessing.active_children()]
         s = format('I have spawned %n; %n %b still currently active: %L.',
