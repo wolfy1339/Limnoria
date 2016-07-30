@@ -44,7 +44,6 @@ if sys.platform.lower().startswith('java'):
     # http://stackoverflow.com/q/9100909/539465
     from threading import Thread as Process
 else:
-    print(platform.system())
     from multiprocessing import Process
 
 import re
